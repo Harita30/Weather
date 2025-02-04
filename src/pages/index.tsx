@@ -1,114 +1,151 @@
-import Image from "next/image";
-import { Geist, Geist_Mono } from "next/font/google";
+import { GetServerSideProps } from "next";
+import { useState } from "react";
+import { useRouter } from "next/router";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+interface WeatherData {
+  temp_c: number;
+  humidity: number;
+  condition: { text: string; icon: string };
+}
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+interface ForecastDay {
+  date: string;
+  day: { avgtemp_c: number; condition: { text: string; icon: string } };
+}
 
-export default function Home() {
+interface LocationData {
+  name: string;
+}
+
+interface HomeProps {
+  weather: WeatherData | null;
+  location: LocationData | null;
+  forecast: ForecastDay[];
+}
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const city = context.query.city ? String(context.query.city) : null;
+
+  if (!city) {
+    return {
+      props: {
+        error: "Please enter a valid city name.",
+        weather: null,
+        location: null,
+        forecast: [],
+      },
+    };
+  }
+
+  try {
+    const res = await fetch(
+      `https://api.weatherapi.com/v1/forecast.json?key=6c417aee9fd845df809163341250202&q=${city}&days=5`
+    );
+    if (!res.ok) throw new Error("Failed to fetch weather data");
+
+    const data = await res.json();
+
+    return {
+      props: {
+        error: null,
+        weather: data.current || null,
+        location: data.location || null,
+        forecast: data.forecast?.forecastday || [],
+      },
+    };
+  } catch (error) {
+    console.error("Weather API Error:", error);
+    return {
+      props: {
+        error: "Could not fetch weather data.",
+        weather: null,
+        location: null,
+        forecast: [],
+      },
+    };
+  }
+};
+
+export default function Home({
+  weather,
+  location,
+  forecast,
+  error,
+}: HomeProps & { error?: string }) {
+  const [city, setCity] = useState("");
+  const router = useRouter();
+
+  const fetchWeather = async () => {
+    if (!city.trim()) {
+      alert("Please enter a valid city name.");
+      return;
+    }
+    router.push(`/?city=${encodeURIComponent(city)}`);
+  };
+
   return (
-    <div
-      className={`${geistSans.variable} ${geistMono.variable} grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]`}
-    >
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/pages/index.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="flex flex-col items-center p-5">
+      <h1 className="text-3xl font-bold">Weather App</h1>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <div className="flex gap-2 my-4">
+        <input
+          type="text"
+          placeholder="Enter city..."
+          className="border p-2 rounded-md"
+          onChange={(e) => setCity(e.target.value)}
+        />
+        <button
+          onClick={fetchWeather}
+          className="bg-blue-500 text-white p-2 rounded-md"
+        >
+          Fetch Weather
+        </button>
+      </div>
+
+      {error && <p className="text-red-500">{error}</p>}
+
+      {weather && location && (
+        <div className="border p-4 rounded-md shadow-md">
+          <h2 className="text-xl font-semibold">Today</h2>
+          <p>
+            <strong>City:</strong> {location.name}
+          </p>
+          <p>
+            <strong>Temperature:</strong> {weather.temp_c}°C
+          </p>
+          <p>
+            <strong>Humidity:</strong> {weather.humidity}%
+          </p>
+          <p>
+            <strong>Condition:</strong> {weather.condition.text}
+          </p>
+          <img
+            src={`https:${weather.condition.icon}`}
+            alt={weather.condition.text}
+          />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+
+      {forecast.length > 0 && (
+        <div className="mt-4">
+          <h2 className="text-lg font-semibold">5-Day Forecast</h2>
+          <div className="grid grid-cols-5 gap-4">
+            {forecast.map((day) => (
+              <div key={day.date} className="border p-2 rounded-md text-center">
+                <p>
+                  <strong>{day.date}</strong>
+                </p>
+                <p>{day.day.avgtemp_c}°C</p>
+                <img
+                  src={`https:${day.day.condition.icon}`}
+                  alt={day.day.condition.text}
+                />
+                <p>{day.day.condition.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
